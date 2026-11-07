@@ -39,7 +39,7 @@ function EffectCard({ effect, active, onSelect }: { effect: typeof effects[numbe
     if (!canvas.current) return
     const renderer = new Renderer(canvas.current)
     const transition: Transition = { effect: effect.id, duration: 300, strength: 80, direction: directionFor(effect.id, 'left') }
-    renderer.draw([sampleImage(0), sampleImage(1)], {
+    renderer.draw([{ bitmap: sampleImage(0) }, { bitmap: sampleImage(1) }], {
       segment: { kind: 'transition', start: 0, duration: 300, index: 0, seed: 2893, transition },
       start: 100, duration: 100, tick: 2, progress: 0.5,
     }, { fit: 'contain', background: '#13121c' })

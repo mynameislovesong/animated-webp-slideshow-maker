@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, GripVertical, Image, Images, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Crop, GripVertical, Image, Images, Plus, Trash2 } from 'lucide-react'
 import type { DragEvent } from 'react'
 import { seconds, type Clip } from '../model.ts'
 import { IconButton } from './Controls.tsx'
@@ -28,8 +28,9 @@ export function dropClip(event: DragEvent<HTMLElement>, id: string, horizontal: 
   reorder(source, id, after)
 }
 
-export function Library({ clips, selectedId, busy, onSelect, onRemove, onAdd, onReorder }: {
+export function Library({ clips, selectedId, editingId, busy, onSelect, onEdit, onRemove, onAdd, onReorder }: {
   clips: Clip[]; selectedId: string | null; busy: boolean
+  editingId: string | null; onEdit: (id: string) => void
   onSelect: (id: string) => void; onRemove: (id: string) => void; onAdd: () => void; onReorder: Reorder
 }) {
   return <aside className="panel library" aria-label="이미지 목록">
@@ -49,6 +50,7 @@ export function Library({ clips, selectedId, busy, onSelect, onRemove, onAdd, on
           </button>
           <IconButton label={`${clip.name} 삭제`} className="remove" onClick={() => onRemove(clip.id)}><Trash2 size={14} /></IconButton>
           {selectedId === clip.id && <div className="order-buttons">
+            <button type="button" className="text-button crop-launch" aria-pressed={editingId === clip.id} onClick={() => onEdit(clip.id)}><Crop size={13} /> 이미지 편집</button>
             <IconButton label="위로 이동" disabled={index === 0} onClick={() => onReorder(clip.id, clips[index - 1].id, false)}><ArrowUp size={13} /></IconButton>
             <IconButton label="아래로 이동" disabled={index === clips.length - 1} onClick={() => onReorder(clip.id, clips[index + 1].id, true)}><ArrowDown size={13} /></IconButton>
           </div>}

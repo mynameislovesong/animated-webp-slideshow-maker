@@ -1,9 +1,11 @@
 import type { Direction, Settings } from './model.ts'
 import type { Frame } from './timeline.ts'
+import { cropRect, type Crop, type Size } from './crop.ts'
 
 type Surface = HTMLCanvasElement | OffscreenCanvas
 type Context = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
 type Source = CanvasImageSource & { width: number; height: number }
+type RenderImage = { bitmap: Source; crop?: Crop }
 type Appearance = Pick<Settings, 'background' | 'fit'>
 
 function context(canvas: Surface): Context {
@@ -37,10 +39,15 @@ function vector(direction: Direction): [number, number] {
   return [-1, 0]
 }
 
-function compose(ctx: Context, image: Source, { background, fit }: Appearance) {
+function compose(ctx: Context, { bitmap: image, crop }: RenderImage, { background, fit }: Appearance, frame: Size) {
   const { width, height } = ctx.canvas
   ctx.fillStyle = background
   ctx.fillRect(0, 0, width, height)
+  if (crop) {
+    const rect = cropRect({ image, frame, fit }, crop)
+    ctx.drawImage(image, rect.x * width, rect.y * height, rect.width * width, rect.height * height)
+    return
+  }
   if (fit === 'stretch') {
     ctx.drawImage(image, 0, 0, width, height)
     return
@@ -54,8 +61,8 @@ function compose(ctx: Context, image: Source, { background, fit }: Appearance) {
 export class Renderer {
   private readonly ctx: Context
   private readonly layers: Context[]
-  private cached = new Map<Context, { image: Source; background: string; fit: string }>()
-  constructor(canvas: Surface) {
+  private cached = new Map<Context, RenderImage & Appearance>()
+  constructor(canvas: Surface, private readonly frameSize: Size = canvas) {
     this.ctx = context(canvas)
     const { width, height } = canvas
     this.layers = Array.from({ length: 3 }, () => context(surface(width, height)))
@@ -69,17 +76,17 @@ export class Renderer {
     }
   }
 
-  private layer(index: number, image: Source, appearance: Appearance) {
+  private layer(index: number, image: RenderImage, appearance: Appearance) {
     const ctx = this.layers[index]
     const cache = this.cached.get(ctx)
-    if (!cache || cache.image !== image || cache.background !== appearance.background || cache.fit !== appearance.fit) {
-      compose(ctx, image, appearance)
-      this.cached.set(ctx, { image, ...appearance })
+    if (!cache || cache.bitmap !== image.bitmap || cache.crop !== image.crop || cache.background !== appearance.background || cache.fit !== appearance.fit) {
+      compose(ctx, image, appearance, this.frameSize)
+      this.cached.set(ctx, { bitmap: image.bitmap, crop: image.crop, ...appearance })
     }
     return ctx.canvas
   }
 
-  draw(images: Source[], frame: Frame, appearance: Appearance) {
+  draw(images: RenderImage[], frame: Frame, appearance: Appearance) {
     const { segment, progress: p, tick } = frame
     const ctx = this.ctx
     const { width: w, height: h } = ctx.canvas

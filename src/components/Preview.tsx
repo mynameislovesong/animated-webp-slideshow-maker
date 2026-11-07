@@ -4,10 +4,12 @@ import { resizeToFit, timestamp, type Clip, type Settings } from '../model.ts'
 import { Renderer } from '../renderer.ts'
 import { frameAt, type Segment } from '../timeline.ts'
 import { IconButton } from './Controls.tsx'
+import { CropEditor, type CropUpdate } from './CropEditor.tsx'
 
-export function Preview({ clips, segments, total, time, playing, repeat, settings, dimensions, onAdd, onSeek, onToggle, onRepeat }: {
+export function Preview({ clips, segments, total, time, playing, repeat, settings, dimensions, editingClip, onCrop, onCropDone, onAdd, onSeek, onToggle, onRepeat }: {
   clips: Clip[]; segments: Segment[]; total: number; time: number; playing: boolean; repeat: boolean
   settings: Settings; dimensions: { width: number; height: number }
+  editingClip?: Clip; onCrop: (update: CropUpdate) => void; onCropDone: () => void
   onAdd: () => void; onSeek: (time: number) => void; onToggle: () => void; onRepeat: () => void
 }) {
   const canvas = useRef<HTMLCanvasElement>(null)
@@ -16,6 +18,7 @@ export function Preview({ clips, segments, total, time, playing, repeat, setting
   const [expanded, setExpanded] = useState(false)
   const [error, setError] = useState('')
   const hasClips = clips.length > 0
+  const hasPreview = hasClips && !editingClip
   const preview = resizeToFit(dimensions.width, dimensions.height, 1280)
   const frame = frameAt(segments, time, settings.fps)
   const frameStart = frame?.start
@@ -25,25 +28,25 @@ export function Preview({ clips, segments, total, time, playing, repeat, setting
   useEffect(() => {
     if (!canvas.current) return
     try {
-      const engine = new Renderer(canvas.current)
+      const engine = new Renderer(canvas.current, { width: dimensions.width, height: dimensions.height })
       renderer.current = engine
       setError('')
       return () => { engine.dispose(); renderer.current = null }
     } catch {
       setError('미리보기를 초기화할 수 없습니다.')
     }
-  }, [hasClips, preview.width, preview.height])
+  }, [hasPreview, preview.width, preview.height, dimensions.width, dimensions.height])
 
   useEffect(() => {
     const current = latestFrame.current
     if (!current || !renderer.current) return
     try {
-      renderer.current.draw(clips.map(clip => clip.bitmap), current, settings)
+      renderer.current.draw(clips, current, settings)
       setError('')
     } catch {
       setError('미리보기 이미지를 그릴 수 없습니다.')
     }
-  }, [clips, frameStart, segments, preview.width, preview.height, settings])
+  }, [hasPreview, clips, frameStart, segments, preview.width, preview.height, dimensions.width, dimensions.height, settings])
 
   useEffect(() => {
     const update = () => setExpanded(document.fullscreenElement === panel.current)
@@ -62,12 +65,13 @@ export function Preview({ clips, segments, total, time, playing, repeat, setting
 
   return <section className="panel preview" ref={panel} aria-label="미리보기">
     <div className="panel-heading">
-      <div className="flex items-center gap-2"><span className="preview-indicator" /><h2>미리보기</h2></div>
+      <div className="flex items-center gap-2"><span className="preview-indicator" /><h2>{editingClip ? '이미지 편집' : '미리보기'}</h2></div>
       <div className="flex items-center gap-2">
         <span className="badge dim">{hasClips ? `${dimensions.width} × ${dimensions.height}` : '캔버스'}</span>
         <IconButton label={expanded ? '전체 화면 닫기' : '전체 화면'} onClick={fullscreen}>{expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</IconButton>
       </div>
     </div>
+    {editingClip ? <CropEditor key={editingClip.id} clip={editingClip} dimensions={dimensions} settings={settings} onChange={onCrop} onDone={onCropDone} /> : <>
     <div className="preview-stage">
       {hasClips ? <>
         <canvas ref={canvas} width={preview.width} height={preview.height} aria-label="슬라이드쇼 프레임" />
@@ -90,5 +94,6 @@ export function Preview({ clips, segments, total, time, playing, repeat, setting
         onChange={event => onSeek(Number(event.target.value))} disabled={!total} />
       <div className="time"><b>{timestamp(time)}</b><span> / </span>{timestamp(total)}</div>
     </div>
+    </>}
   </section>
 }

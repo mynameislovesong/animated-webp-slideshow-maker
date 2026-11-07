@@ -1,3 +1,5 @@
+import type { Crop } from './crop.ts'
+
 export const effects = [
   { id: 'none', name: 'None', label: '즉시 전환', directional: false },
   { id: 'fade', name: 'Fade', label: '배경을 거쳐 페이드', directional: false },
@@ -20,7 +22,7 @@ export const effects = [
 export type Effect = typeof effects[number]['id']
 export type Direction = 'left' | 'right' | 'up' | 'down' | 'in' | 'out'
 export type Transition = { effect: Effect; duration: number; strength: number; direction: Direction }
-export type Clip = { id: string; name: string; file: Blob; bitmap: ImageBitmap; url: string; duration: number; transition: Transition }
+export type Clip = { id: string; name: string; file: Blob; bitmap: ImageBitmap; url: string; duration: number; transition: Transition; crop?: Crop }
 export type TimelineClip = Pick<Clip, 'id' | 'duration' | 'transition'>
 export type Fit = 'contain' | 'cover' | 'stretch'
 export const fpsOptions = [5, 10, 15, 20, 24, 30] as const
@@ -43,7 +45,7 @@ export const defaultTransition: Transition = { effect: 'none', duration: 300, st
 export const defaults: Settings = {
   resolution: 'original', width: 1280, height: 720, fit: 'contain', background: '#171721',
   fps: 20, quality: 85, lossless: false, loops: 0, filename: 'slideshow',
-  defaultDuration: 500, defaultTransition,
+  defaultDuration: 1000, defaultTransition,
 }
 export const storageKey = 'webp-studio-settings-v1'
 export const maxDimension = 8192

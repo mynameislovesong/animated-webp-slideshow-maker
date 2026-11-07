@@ -1,7 +1,7 @@
-import type { Settings, TimelineClip } from './model.ts'
+import type { Clip, Settings, TimelineClip } from './model.ts'
 
 export type ExportRequest = {
-  clips: (TimelineClip & { file: Blob })[]
+  clips: (TimelineClip & Pick<Clip, 'file' | 'crop'>)[]
   settings: Settings
   width: number
   height: number

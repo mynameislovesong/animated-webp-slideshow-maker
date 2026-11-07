@@ -3,6 +3,7 @@ import { Renderer } from './renderer.ts'
 import { framesIn, makeTimeline, timelineFrames } from './timeline.ts'
 import { AnimatedWebP, inspectAnimation } from './webp.ts'
 import type { ExportMessage, ExportRequest } from './export-protocol.ts'
+import type { Crop } from './crop.ts'
 
 const send = (message: ExportMessage) => self.postMessage(message)
 
@@ -20,7 +21,7 @@ async function run({ clips, width, height, settings }: ExportRequest) {
   const renderer = new Renderer(canvas)
   const ctx = canvas.getContext('2d')!
   const mux = new AnimatedWebP(width, height, settings.loops, settings.background)
-  const images: ImageBitmap[] = []
+  const images: { bitmap: ImageBitmap; crop?: Crop }[] = []
   const opened = new Set<number>()
   const expected: number[] = []
   try {
@@ -29,7 +30,7 @@ async function run({ clips, width, height, settings }: ExportRequest) {
       const { index, kind } = frame.segment
       for (const slot of opened) {
         if (slot < index) {
-          images[slot].close()
+          images[slot].bitmap.close()
           opened.delete(slot)
           delete images[slot]
         }
@@ -37,7 +38,8 @@ async function run({ clips, width, height, settings }: ExportRequest) {
       const end = index + Number(kind === 'transition')
       for (let slot = index; slot <= end; slot++) {
         if (!opened.has(slot)) {
-          images[slot] = await createImageBitmap(clips[slot].file)
+          const { file, crop } = clips[slot]
+          images[slot] = { bitmap: await createImageBitmap(file), crop }
           opened.add(slot)
         }
       }
@@ -59,7 +61,7 @@ async function run({ clips, width, height, settings }: ExportRequest) {
     }
     send({ type: 'result', blob, frames: frameCount, duration: total })
   } finally {
-    for (const slot of opened) images[slot].close()
+    for (const slot of opened) images[slot].bitmap.close()
     renderer.dispose()
     canvas.width = 1
     canvas.height = 1

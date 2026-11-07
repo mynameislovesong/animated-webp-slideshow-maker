@@ -1,6 +1,7 @@
 import { AlertTriangle, Check, Download, Film, ImagePlus, LockKeyhole, RotateCcw, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { Inspector } from './components/Inspector.tsx'
+import type { CropUpdate } from './components/CropEditor.tsx'
 import { Library } from './components/Library.tsx'
 import { Preview } from './components/Preview.tsx'
 import { Timeline } from './components/Timeline.tsx'
@@ -8,6 +9,7 @@ import { IconButton } from './components/Controls.tsx'
 import { readClip, releaseClip } from './images.ts'
 import { clamp, defaults, loadSettings, maxClips, maxDimension, maxOutputPixels, moveClip, outputDimensions, presets, seconds, storageKey, type Clip, type Settings, type Transition } from './model.ts'
 import { framesIn, makeTimeline } from './timeline.ts'
+import { defaultCrop } from './crop.ts'
 import type { ExportMessage, ExportRequest } from './export-protocol.ts'
 
 type Job = { progress: number; stage: string }
@@ -30,6 +32,7 @@ export default function App() {
   const [clips, setClips] = useState<Clip[]>([])
   const [settings, setSettings] = useState(loadSettings)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [position, setPosition] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [repeat, setRepeat] = useState(true)
@@ -51,9 +54,11 @@ export default function App() {
   const startupTimer = useRef(0)
   const resultUrl = useRef<string | null>(null)
   const { segments, total } = useMemo(() => makeTimeline(clips), [clips])
-  const dimensions = useMemo(() => outputDimensions(settings, clips[0]?.bitmap), [settings, clips])
+  const firstBitmap = clips[0]?.bitmap
+  const dimensions = useMemo(() => outputDimensions(settings, firstBitmap), [settings, firstBitmap])
   const index = clips.findIndex(clip => clip.id === selectedId)
   const selected = clips[index]
+  const editingClip = selected?.id === editingId ? selected : undefined
   const time = Math.min(position, total)
   const frameCount = useMemo(() => segments.reduce((sum, segment) => sum + framesIn(segment, settings.fps), 0), [segments, settings.fps])
   const pixels = dimensions.width * dimensions.height
@@ -66,6 +71,7 @@ export default function App() {
   }
 
   const seek = useCallback((ms: number) => {
+    setEditingId(null)
     clock.current = clamp(ms, 0, total)
     previewStop.current = null
     setPosition(clock.current)
@@ -74,6 +80,7 @@ export default function App() {
 
   const togglePlayback = useCallback(() => {
     if (!total) return
+    setEditingId(null)
     if (clock.current >= total) {
       clock.current = 0
       setPosition(0)
@@ -192,7 +199,24 @@ export default function App() {
     seek(target ?? segments.find(segment => segment.kind === 'hold' && clips[segment.index].id === id)?.start ?? 0)
   }
 
+  const editCrop = useCallback((update: CropUpdate) => {
+    const current = activeClips.current
+    const index = current.findIndex(clip => clip.id === editingId)
+    if (index < 0) return
+    const clip = current[index]
+    const value = clip.crop ?? defaultCrop
+    const crop = update(value)
+    if (!crop && !clip.crop) return
+    if (crop && crop.scale === value.scale && crop.offsetX === value.offsetX &&
+        crop.offsetY === value.offsetY && crop.allowGaps === value.allowGaps) return
+    const next = [...current]
+    next[index] = { ...clip, crop }
+    activeClips.current = next
+    setClips(next)
+  }, [editingId])
+
   function showTransition(id: string, play = true) {
+    setEditingId(null)
     setSelectedId(id)
     const segment = segments.find(item => item.kind === 'transition' && clips[item.index].id === id)
     if (!segment) return
@@ -296,7 +320,7 @@ export default function App() {
     }
     const filename = settings.filename.trim().replace(/\.webp$/i, '').replace(/[\\/:*?"<>|]/g, '-').trim() || 'slideshow'
     const request: ExportRequest = {
-      clips: clips.map(({ id, duration, transition, file }) => ({ id, duration, transition, file })),
+      clips: clips.map(({ id, duration, transition, file, crop }) => ({ id, duration, transition, file, crop })),
       settings, ...dimensions,
     }
     setPlaying(false)
@@ -367,8 +391,10 @@ export default function App() {
     </header>
 
     <div className={`workspace ${collapsed ? 'inspector-collapsed' : ''}`}>
-      <Library clips={clips} selectedId={selectedId} busy={uploading > 0} onSelect={select} onRemove={remove} onAdd={chooseFiles} onReorder={reorder} />
+      <Library clips={clips} selectedId={selectedId} editingId={editingId} busy={uploading > 0} onSelect={select}
+        onEdit={id => { select(id); setEditingId(id) }} onRemove={remove} onAdd={chooseFiles} onReorder={reorder} />
       <Preview clips={clips} segments={segments} total={total} time={time} playing={playing} repeat={repeat} settings={settings} dimensions={dimensions}
+        editingClip={editingClip} onCrop={editCrop} onCropDone={() => setEditingId(null)}
         onAdd={chooseFiles} onSeek={seek} onToggle={togglePlayback} onRepeat={() => setRepeat(value => !value)} />
       <Inspector clip={selected} index={index} count={clips.length} settings={settings} dimensions={dimensions} collapsed={collapsed}
         onCollapse={() => setCollapsed(value => !value)} onDuration={changeDuration} onTransition={changeTransition}
