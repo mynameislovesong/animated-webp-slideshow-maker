@@ -1,0 +1,93 @@
+# WebP Studio
+
+PNG, JPG, JPEG, WebP 이미지로 슬라이드쇼를 편집하고 Animated WebP로 저장하는 한국어 웹 편집기입니다. 원본 이미지의 디코딩과 출력은 브라우저에서 이루어집니다. 이미지는 새로고침하면 사라지고 최근 설정만 현재 브라우저에 남습니다.
+
+## 주요 기능
+
+- 다중 파일 선택, 드래그 앤 드롭, 클립보드 붙여넣기, 중복 이미지 추가
+- 원본 해상도와 썸네일을 표시하는 목록, 드래그 및 버튼을 이용한 순서 편집
+- 클립별 표시 시간, 16종 전환 효과, 지속 시간·강도·방향 조절, 일괄 적용과 프리셋 5종
+- 타임라인, 재생 헤드, 시크, 반복 재생, 전체 화면과 전환 미리보기
+- 원본 또는 지정 해상도, 배경색, Contain·Cover·Stretch, 5–30 FPS, 품질·무손실·반복 횟수·파일명 설정
+- Web Worker에서 처리하는 내보내기, 진행률·취소·오류 표시, 실제 파일 크기와 다시 다운로드
+
+## 로컬 실행과 빌드
+
+Node.js 22.12 이상이 필요합니다. Windows PowerShell에서 `npm.ps1` 실행이 제한되면 명령의 `npm`을 `npm.cmd`로 바꿉니다.
+
+```sh
+npm ci
+npm run dev
+```
+
+터미널에 표시된 로컬 주소를 브라우저에서 엽니다.
+
+```sh
+npm test
+npm run build
+npm run preview
+```
+
+빌드 결과는 `dist/`에 생성됩니다. 기본 Vite 경로는 `/animated-webp-slideshow-maker/`입니다. 다른 경로를 사용하려면 빌드와 미리보기 모두에 같은 환경 변수를 설정합니다.
+
+```powershell
+$env:VITE_BASE_PATH = '/animated-webp-slideshow-maker/'
+npm run build
+npm run preview
+```
+
+## GitHub Pages 배포
+
+1. 프로젝트 파일을 저장소 루트에 두고 `.github/workflows/pages.yml`을 포함해 커밋합니다.
+2. 저장소의 **Settings → Pages → Build and deployment → Source**에서 **GitHub Actions**를 선택합니다.
+3. `main`에 푸시하거나 Actions에서 **Deploy GitHub Pages**를 직접 실행합니다.
+4. 워크플로가 단위 테스트와 TypeScript·Vite 빌드를 실행하고 `dist/`를 배포합니다. `configure-pages`의 `base_path`가 Vite에 전달되어 저장소 하위 경로나 루트 경로가 반영됩니다. 배포 주소는 Actions 실행 결과에서 확인할 수 있습니다.
+
+[GitHub Pages 사용자 지정 워크플로 공식 문서](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
+
+## 사용 방법
+
+1. **이미지 추가**로 여러 파일을 선택합니다. 편집기에 파일을 놓거나 `Ctrl+V` 또는 `⌘V`로 이미지 데이터를 붙여넣을 수도 있습니다.
+2. 목록이나 타임라인의 클립을 선택한 뒤 **클립** 탭에서 표시 시간을 수정합니다. 썸네일을 드래그하거나 목록의 화살표 버튼으로 순서를 바꿉니다.
+3. **전환 효과 선택**을 열어 효과 카드를 고릅니다. 다음 이미지로 넘어가는 효과를 설정한 뒤 **효과 재생**으로 해당 전환만 확인합니다. 타임라인의 보라색 마커를 누르면 전환 중간으로 이동합니다.
+4. **출력** 탭에서 해상도와 배경을 정합니다. 비율이 다른 원본을 모두 보이게 하려면 기본값인 **Contain**을 유지합니다.
+5. **WebP 내보내기**를 누르면 처리 후 다운로드가 시작됩니다. 완료 알림에서 파일 크기를 확인하거나 다시 다운로드할 수 있습니다.
+
+### 시간과 해상도 계산
+
+- 전체 길이는 각 클립의 표시 시간과 활성 전환 시간의 합입니다. 전환은 앞 이미지의 표시가 끝난 뒤 시작합니다. 마지막 이미지에서 처음으로 돌아갈 때는 즉시 전환합니다.
+- 정지 구간은 표시 시간 전체를 가진 한 프레임으로 저장합니다. 전환 구간은 FPS에 맞춰 나누고, 짧은 효과에도 최소 3프레임을 확보합니다. 밀리초 단위로 프레임 경계를 정해 전체 길이를 보존합니다.
+- 원본 모드는 타임라인 첫 이미지의 픽셀 크기를 사용합니다. 숫자 프리셋은 첫 이미지의 비율에 맞춰 긴 변을 지정한 크기로 맞춥니다. 서로 다른 크기의 이미지는 같은 출력 영역에 합성됩니다.
+- 표시 시간과 전환 설정을 변경하면 그 값이 이후 추가할 이미지의 기본값으로도 저장됩니다.
+
+## 기술 스택과 인코딩
+
+React, TypeScript, Vite, Tailwind CSS, Lucide React, Canvas API, Web Worker, OffscreenCanvas, libwebp WebAssembly를 사용합니다.
+
+미리보기와 Worker는 같은 프레임 스케줄과 Canvas 렌더러를 사용합니다. 글리치 난수는 클립 ID와 전환 프레임 번호에서 계산합니다. Worker가 해당 시점에 필요한 원본만 디코딩하고, [jSquash의 브라우저용 libwebp WASM](https://github.com/jamsinclair/jSquash/tree/main/packages/webp)으로 RGBA 프레임을 순차 압축합니다. 압축한 비트스트림은 [RFC 9649](https://www.rfc-editor.org/rfc/rfc9649.html)에 맞춰 `VP8X`, `ANIM`, `ANMF` 청크로 조립합니다. 다운로드 전에 프레임 수, 해상도, 반복 횟수와 각 프레임의 지속 시간을 검사합니다.
+
+## 테스트
+
+```sh
+npm test
+npx playwright install chromium
+npm run build
+npm run test:e2e
+```
+
+Windows에서 이미 설치된 Edge를 사용하려면 `$env:PLAYWRIGHT_CHANNEL = 'msedge'`를 설정한 뒤 브라우저 테스트를 실행합니다. 브라우저 테스트는 프로덕션 빌드를 저장소 하위 경로에 띄워 실행합니다.
+
+### 검증 결과
+
+- 단위 테스트 5개와 Edge 브라우저 테스트 3개가 통과했습니다. 저장소 하위 경로로 설정한 TypeScript·Vite 프로덕션 빌드를 열고 새로고침 및 Worker·WASM 로딩을 확인했습니다.
+- 서로 다른 표시 시간의 이미지 3장과 RGB Split, Digital Glitch를 5 FPS로 내보냈습니다. Edge에서 WebP의 9개 프레임을 디코딩해 총 2.5초, 이미지 순서, 반복 횟수와 프레임별 지속 시간을 확인했습니다. 두 전환의 무손실 출력 프레임은 같은 시점의 미리보기 픽셀과 일치했습니다.
+- 이미지 1장 출력, 손상된 입력 처리, 순서 변경, 모바일 너비 레이아웃, 붙여넣기·파일 드롭, 인코딩 취소 후 재시도를 확인했습니다.
+
+## 알려진 제한사항
+
+- 최신 WebAssembly, 모듈 Worker, OffscreenCanvas가 필요합니다. 일부 브라우저의 클립보드 정책에 따라 파일 선택이나 드래그 앤 드롭을 사용해야 할 수 있습니다.
+- 캔버스는 지정한 배경색으로 합성합니다. 애니메이션 WebP를 입력하면 첫 프레임을 이미지로 사용합니다. 이미지 한 장을 내보내면 프레임의 시간 정보가 저장되며 화면에는 움직임 없이 표시됩니다.
+- 이미지는 최대 100장, 파일당 60MiB, 원본 합계 9,600만 픽셀까지 허용합니다. 출력은 각 변 8,192px, 총 16,777,216픽셀, 압축된 프레임 데이터 192MiB 이하입니다. 브라우저나 장치의 메모리에 따라 더 작은 프로젝트가 필요할 수 있습니다.
+- 미리보기의 긴 변은 최대 1,280px입니다. 더 큰 출력에서는 같은 프레임과 합성 규칙으로 출력 크기에 맞춰 다시 그립니다.
+- Datamosh Style은 Canvas에서 이전 프레임의 블록 잔상을 합성합니다.
+- 실제 GitHub Pages 배포와 Safari·Firefox 및 실기기 모바일 검증은 수행하지 않았습니다.
